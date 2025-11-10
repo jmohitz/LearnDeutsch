@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { Level, Language, Lesson, VocabularyItem } from "@/types";
+import { Level, Language, Lesson } from "@/types";
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -12,7 +12,7 @@ export async function generateLesson(
   nativeLanguage: Language,
   topic?: string
 ): Promise<{ lesson: Omit<Lesson, "id" | "createdAt" | "imageUrl" | "audioUrl"> }> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `You are a German language teacher. Create a lesson for ${level} level students.
   
@@ -33,7 +33,7 @@ Level guidelines:
 - intermediate: Mix tenses, introduce compound sentences
 - advanced: Use complex grammar, idioms, longer texts
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON in this exact format (no markdown, no code blocks):
 {
   "level": "${level}",
   "title": "Title in ${nativeLanguage}",
@@ -54,39 +54,32 @@ Return ONLY valid JSON in this exact format:
     const result = await model.generateContent(prompt);
     const response = result.response.text();
     
-    // Remove markdown code blocks if present
-    const jsonText = response
-      .replace(/```
+    console.log("Raw AI response:", response.substring(0, 200)); // Debug log
+    
+    // More aggressive cleaning to remove markdown and extra text
+    let jsonText = response
       .replace(/```\n?/g, "")
+      .replace(/^json\n?/gi, "")
       .trim();
+    
+    // Find the first { and last } to extract just the JSON
+    const firstBrace = jsonText.indexOf("{");
+    const lastBrace = jsonText.lastIndexOf("}");
+    
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+    }
+    
+    console.log("Cleaned JSON:", jsonText.substring(0, 200)); // Debug log
     
     const lessonData = JSON.parse(jsonText);
     
     return { lesson: lessonData };
   } catch (error) {
     console.error("Error generating lesson:", error);
+    console.error("Failed to parse AI response");
     throw new Error("Failed to generate lesson content");
   }
-}
-
-/**
- * Generate an image based on the lesson content
- */
-export async function generateLessonImage(
-  storyGerman: string,
-  level: Level
-): Promise<string> {
-  // Note: Gemini image generation requires different setup
-  // For now, we'll create a placeholder
-  // We'll implement actual image generation in the next step
-  
-  const imagePrompt = `Create a simple, educational illustration for a German language lesson.
-Story context: ${storyGerman}
-Style: Friendly, colorful, suitable for ${level} level language learners.
-No text in the image.`;
-
-  // Placeholder - we'll implement actual generation later
-  return imagePrompt;
 }
 
 /**
@@ -97,7 +90,7 @@ export async function getWritingFeedback(
   expectedLevel: Level,
   nativeLanguage: Language
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `You are a German language teacher. Review this German text written by a ${expectedLevel} level student.
 

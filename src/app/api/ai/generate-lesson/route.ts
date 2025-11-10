@@ -19,6 +19,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if API key exists
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("GEMINI_API_KEY is not set in environment variables");
+      return NextResponse.json(
+        { error: "Server configuration error: API key missing" },
+        { status: 500 }
+      );
+    }
+
+    console.log(`Generating lesson for level: ${level}, language: ${nativeLanguage}`);
+
     // Generate lesson using Gemini AI
     const { lesson } = await generateLesson(
       level as Level,
@@ -37,7 +48,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error in generate-lesson API:", error);
     return NextResponse.json(
-      { error: "Failed to generate lesson" },
+      { error: "Failed to generate lesson: " + (error instanceof Error ? error.message : "Unknown error") },
       { status: 500 }
     );
   }
